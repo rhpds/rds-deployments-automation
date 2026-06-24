@@ -8,7 +8,6 @@
 set -o pipefail
 
 MAX_RETRIES=3
-RETRY_DELAY=300  # 5 minutes between retries
 REGISTRY="$1"
 
 # Function to run a single oc-mirror operation with retry logic
@@ -38,8 +37,7 @@ run_mirror_with_retry() {
             echo "ERROR: oc-mirror ${version} - some errors occurred during the mirroring"
             attempt=$((attempt + 1))
             if [ $attempt -le $MAX_RETRIES ]; then
-                echo "RETRY: Waiting ${RETRY_DELAY} seconds before retrying ${version}..."
-                sleep $RETRY_DELAY
+                echo "RETRY: Retrying ${version} immediately (attempt ${attempt}/${MAX_RETRIES})..."
             fi
         else
             echo "SUCCESS: oc-mirror ${version} completed without errors"
