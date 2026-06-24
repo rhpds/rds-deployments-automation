@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # oc-mirror wrapper with retry logic for network failures
-# Runs all three versions (418, 419, 420) and retries the entire sequence if any fail
-# Returns 0 only if all mirrors succeed, 1 if any fail after 3 full retries
+# Runs each version (418, 419, 420) with individual retry logic
+# Returns 0 only if all mirrors succeed, 1 if any fail after 3 retries
 #
 
 set -o pipefail
@@ -11,82 +11,61 @@ MAX_RETRIES=3
 RETRY_DELAY=300  # 5 minutes between retries
 REGISTRY="$1"
 
-# Function to run all three oc-mirror operations
-run_all_mirrors() {
-    local attempt=$1
-    local all_success=true
+# Function to run a single oc-mirror operation with retry logic
+run_mirror_with_retry() {
+    local version=$1
+    local attempt=1
+    local success=false
 
-    echo "=== Attempt ${attempt}/${MAX_RETRIES}: Starting full oc-mirror sequence ==="
+    while [ $attempt -le $MAX_RETRIES ] && [ "$success" = false ]; do
+        echo "=== Mirroring OCP ${version} (attempt ${attempt}/${MAX_RETRIES}) ==="
 
-    # Clear logs at the start of each retry attempt to avoid detecting old errors
-    if [ $attempt -gt 1 ]; then
-        echo "Clearing previous attempt logs..."
-        > /root/mirroring-418.log
-        > /root/mirroring-419.log
-        > /root/mirroring-420.log
-    fi
+        # Clear log for this version before each attempt
+        if [ $attempt -gt 1 ]; then
+            echo "Clearing previous attempt log for ${version}..."
+            > /root/mirroring-${version}.log
+        fi
 
-    # Mirror 4.18
-    echo "--- Mirroring OCP 4.18 ---"
-    oc-mirror --parallel-images=10 --v2 \
-        --workspace file:///root/workspace-418/ \
-        --config=/root/imageset-mirror-core-418.yaml \
-        docker://${REGISTRY} \
-        2>&1 | tee -a /root/mirroring-418.log
+        # Run oc-mirror
+        oc-mirror --parallel-images=10 --v2 \
+            --workspace file:///root/workspace-${version}/ \
+            --config=/root/imageset-mirror-core-${version}.yaml \
+            docker://${REGISTRY} \
+            2>&1 | tee -a /root/mirroring-${version}.log
 
-    # Check for errors (matches original async check pattern)
-    if grep -q 'some errors occurred during the mirroring' /root/mirroring-418.log; then
-        echo "ERROR: oc-mirror 4.18 - some errors occurred during the mirroring"
-        all_success=false
-    fi
+        # Check for errors (matches original async check pattern)
+        if grep -q 'some errors occurred during the mirroring' /root/mirroring-${version}.log; then
+            echo "ERROR: oc-mirror ${version} - some errors occurred during the mirroring"
+            attempt=$((attempt + 1))
+            if [ $attempt -le $MAX_RETRIES ]; then
+                echo "RETRY: Waiting ${RETRY_DELAY} seconds before retrying ${version}..."
+                sleep $RETRY_DELAY
+            fi
+        else
+            echo "SUCCESS: oc-mirror ${version} completed without errors"
+            success=true
+        fi
+    done
 
-    # Mirror 4.19
-    echo "--- Mirroring OCP 4.19 ---"
-    oc-mirror --parallel-images=10 --v2 \
-        --workspace file:///root/workspace-419/ \
-        --config=/root/imageset-mirror-core-419.yaml \
-        docker://${REGISTRY} \
-        2>&1 | tee -a /root/mirroring-419.log
-
-    # Check for errors (matches original async check pattern)
-    if grep -q 'some errors occurred during the mirroring' /root/mirroring-419.log; then
-        echo "ERROR: oc-mirror 4.19 - some errors occurred during the mirroring"
-        all_success=false
-    fi
-
-    # Mirror 4.20
-    echo "--- Mirroring OCP 4.20 ---"
-    oc-mirror --parallel-images=10 --v2 \
-        --workspace file:///root/workspace-420/ \
-        --config=/root/imageset-mirror-core-420.yaml \
-        docker://${REGISTRY} \
-        2>&1 | tee -a /root/mirroring-420.log
-
-    # Check for errors (matches original async check pattern)
-    if grep -q 'some errors occurred during the mirroring' /root/mirroring-420.log; then
-        echo "ERROR: oc-mirror 4.20 - some errors occurred during the mirroring"
-        all_success=false
-    fi
-
-    if [ "$all_success" = true ]; then
-        return 0
-    else
+    if [ "$success" = false ]; then
+        echo "FAILED: oc-mirror ${version} failed after ${MAX_RETRIES} attempts"
         return 1
     fi
+
+    return 0
 }
 
-# Main execution - retry the entire sequence up to MAX_RETRIES times
-for attempt in $(seq 1 $MAX_RETRIES); do
-    if run_all_mirrors "$attempt"; then
-        echo "=== SUCCESS: All oc-mirror operations completed without errors ==="
-        exit 0
-    else
-        if [ $attempt -lt $MAX_RETRIES ]; then
-            echo "=== RETRY: Waiting ${RETRY_DELAY} seconds before retrying entire sequence ==="
-            sleep $RETRY_DELAY
-        fi
-    fi
-done
+# Main execution - run each version with individual retry logic
+all_success=true
 
-echo "=== FAILED: oc-mirror sequence failed after ${MAX_RETRIES} full attempts ==="
-exit 1
+run_mirror_with_retry "418" || all_success=false
+run_mirror_with_retry "419" || all_success=false
+run_mirror_with_retry "420" || all_success=false
+
+if [ "$all_success" = true ]; then
+    echo "=== SUCCESS: All oc-mirror operations completed without errors ==="
+    exit 0
+else
+    echo "=== FAILED: One or more oc-mirror operations failed after retries ==="
+    exit 1
+fi
