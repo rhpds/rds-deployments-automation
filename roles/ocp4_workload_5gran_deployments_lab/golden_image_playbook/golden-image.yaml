@@ -1,7 +1,7 @@
 ---
 - name: telco 5G lab Golden Image
-  hosts: 10.6.76.211
-  #hosts: hypervisor.hrdrt.dynamic.opentlc.com
+  hosts: bastions
+  become: true
   vars:
     lab_version: "lab-4.20"
     lab_release: "4.20"
