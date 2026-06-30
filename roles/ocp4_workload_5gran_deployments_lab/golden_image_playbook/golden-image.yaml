@@ -331,12 +331,20 @@
       retries: 20
       delay: 5
 
+    - name: Ensure pull secret is added to config.json
+      become: false
+      ansible.builtin.copy:
+        content: "{{ ocp4_pull_secret }}"
+        dest: ~/config.json
+        mode: "0600"
+
     - name: Ensure registry is running by login into it
+      become: false
       containers.podman.podman_login:
         username: admin
         password: 'r3dh4t1!'
         registry: "{{ lab_registry_host }}"
-        authfile: auth.json
+        authfile: ~/config.json
 
     - name: Ensure git server folder exists
       ansible.builtin.file:
@@ -370,20 +378,22 @@
       delay: 10
 
     - name: Ensure mirror-config is downloaded
+      become: false
       ansible.builtin.get_url:
       # yamllint disable rule:line-length
         url: "https://raw.githubusercontent.com/{{ repo_user }}/agnosticd/development/ansible/roles_ocp_workloads/ocp4_workload_5gran_deployments_lab/golden_image_playbook/mirror-config-{{ lab_release }}.yaml"
-        dest: "/root/mirror-config.yaml"
+        dest: "~/mirror-config.yaml"
         mode: "0755"
       # yamllint enable rule:line-length
 
     - name: Execute mirroring
+      become: false
       ansible.builtin.shell:
         # yamllint disable rule:line-length
-        cmd: ~/oc-mirror --parallel-images=10 --v2 --workspace file:// --config=mirror-config.yaml docker://infra.5g-deployment.lab:8443 | tee -a /root/mirroring.log
+        cmd: DOCKER_CONFIG=~/ oc-mirror --parallel-images=10 --v2 --workspace file:// --config=mirror-config.yaml docker://infra.5g-deployment.lab:8443 | tee -a ~/mirroring.log
         # yamllint enable rule:line-length
       args:
-        chdir: /root/
+        chdir: ~/
       tags: oc-mirror
       register: command_result
       failed_when: "'some errors occurred during the mirroring' in (command_result.stdout + command_result.stderr)"
