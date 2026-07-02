@@ -114,6 +114,11 @@
   ansible.builtin.pip:
     name: kubernetes, passlib, pyopenssl, cherrypy, firewall, minio
   when: install_lab_dependencies|bool
+  
+  # temporary fix 
+- name: Ensure oauth version
+  ansible.builtin.pip:
+    name: oauthlib==2.1.0
 
 - name: Ensure kcli rpm is installed
   ansible.builtin.dnf:

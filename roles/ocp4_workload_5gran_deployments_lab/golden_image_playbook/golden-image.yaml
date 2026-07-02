@@ -3,16 +3,17 @@
   hosts: bastions
   become: true
   vars:
-    lab_version: "lab-4.20"
-    lab_release: "4.20"
+    lab_version: "lab-4.21"
+    lab_release: "4.21"
     repo_user: "RHsyseng"
     student_name: "lab-user"
     # yamllint disable rule:line-length
     kcli_rpm: "https://github.com/{{ repo_user }}/5g-ran-deployments-on-ocp-lab/releases/download/{{ lab_release }}/kcli-99.0.0.git.202602040650.86cacd3-0.el9.x86_64.rpm"
     lab_repo: "https://github.com/{{ repo_user }}/5g-ran-deployments-on-ocp-lab.git"
     # yamllint enable rule:line-length
-    ocp4_major_release: "4.20"
-    ocp4_minor_release: "4.20.10"
+    agnostic_repo: "rhpds/rds-deployments-automation"
+    ocp4_major_release: "4.21"
+    ocp4_minor_release: "4.21.10"
     lab_network_cidr: "192.168.125.0/24"
     lab_network_domain: "5g-deployment.lab"
     lab_sriov_domain: "sriov-network.lab"
@@ -23,10 +24,10 @@
     lab_api_host: "api.hub.5g-deployment.lab:6443"
     upstream_dns: "1.1.1.1"
     # yamllint disable rule:line-length
-    rhcos_live_image: 'rhcos-4.20.0-x86_64-live-iso.x86_64.iso'
-    rhcos_rootfs_image: 'rhcos-4.20.0-x86_64-live-rootfs.x86_64.img'
-    rhcos_live_image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/4.20/4.20.0/{{ rhcos_live_image }}"
-    rhcos_rootfs_image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/4.20/4.20.0/{{ rhcos_rootfs_image }}"
+    rhcos_live_image: 'rhcos-4.21.0-x86_64-live-iso.x86_64.iso'
+    rhcos_rootfs_image: 'rhcos-4.21.0-x86_64-live-rootfs.x86_64.img'
+    rhcos_live_image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/4.21/4.21.0/{{ rhcos_live_image }}"
+    rhcos_rootfs_image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/4.21/4.21.0/{{ rhcos_rootfs_image }}"
     container_images:
       - 'quay.io/fedora/httpd-24-micro:2.4'
       - 'quay.io/minio/minio:RELEASE.2025-02-07T23-21-09Z'
@@ -70,6 +71,10 @@
     - name: Ensure required Python modules are installed
       ansible.builtin.pip:
         name: kubernetes, passlib, pyopenssl, cherrypy, firewall, minio
+
+    - name: Ensure oauth version
+      ansible.builtin.pip:
+        name: oauthlib==2.1.0
 
     - name: Ensure kcli rpm is installed
       ansible.builtin.dnf:
@@ -381,7 +386,7 @@
       become: false
       ansible.builtin.get_url:
       # yamllint disable rule:line-length
-        url: "https://raw.githubusercontent.com/{{ repo_user }}/agnosticd/development/ansible/roles_ocp_workloads/ocp4_workload_5gran_deployments_lab/golden_image_playbook/mirror-config-{{ lab_release }}.yaml"
+        url: "https://raw.githubusercontent.com/{{ agnostic_repo }}/main/roles/ocp4_workload_5gran_deployments_lab/golden_image_playbook/mirror-config-{{ lab_release }}.yaml"
         dest: "~/mirror-config.yaml"
         mode: "0755"
       # yamllint enable rule:line-length
