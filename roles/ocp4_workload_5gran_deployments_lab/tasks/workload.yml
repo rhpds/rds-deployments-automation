@@ -306,7 +306,7 @@
     - mco_multiclusterobservability is defined
     - mco_multiclusterobservability.resources | length > 0
     - mco_multiclusterobservability.resources[0].status is defined
-    - "{{ mco_multiclusterobservability.resources[0].status.conditions|json_query('[?type==`Ready`].status') }}"
+    - (mco_multiclusterobservability.resources[0].status.conditions | json_query('[?type==`Ready`].status') | join('')) == "True"
 
 - name: Ensure SNO ssh key is downloaded
   ansible.builtin.get_url:
@@ -671,7 +671,7 @@
   until:
     - performance is defined
     - performance.resources | length > 0
-    - "{{ performance.resources[0].status.conditions|json_query('[?type==`Available`].status') }}"
+    - (performance.resources[0].status.conditions | json_query('[?type==`Available`].status') | join('')) == "True"
 
 - name: Rebooting
   debug:
